@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,7 +30,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.AbsoluteCutCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -42,13 +45,17 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.tooling.preview.Preview
 import com.crxssed.cosmos.ui.theme.CosmosTheme
@@ -60,6 +67,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -69,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.graphics.drawable.toBitmap
+import androidx.core.view.WindowCompat
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.time.LocalTime
@@ -80,14 +89,14 @@ import java.util.Locale
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             CosmosTheme {
                 // A surface container using the 'background' color from the theme
-                Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
+                Surface(modifier = Modifier.fillMaxSize(), color = Color(15, 1, 18)) {
                     Column {
                         Box (modifier = Modifier
-                            .background(Color(30, 30, 30))
-                            .bottomBorder(strokeWidth = 1.dp, color = Color.White)
+                            .background(Color(30, 30, 30, 0))
                             .fillMaxWidth()) {
                             Box(modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
                                 Row(horizontalArrangement = Arrangement.SpaceBetween) {
@@ -108,14 +117,16 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainContainer() {
     val context = LocalContext.current
-    Surface(modifier = Modifier
-        .padding(16.dp)
-        .fillMaxSize()) {
+    Surface(
+        modifier = Modifier
+            .padding(16.dp)
+            .fillMaxSize(),
+        color = Color.Transparent
+    ) {
         AppList(
             apps = listOf(
                 AppInfo("org.xbmc.kodi", "Kodi"),
-                AppInfo("com.magneticchen.daijishou", "Daijishō"),
-                AppInfo("com.google.android.youtube", "YouTube")
+                AppInfo("com.magneticchen.daijishou", "Daijishō")
             ),
             onAppClicked = {packageName: String ->
                 Log.w("Launch", "Hit")
@@ -139,11 +150,73 @@ data class AppInfo (
 @Composable
 fun AppList(apps: List<AppInfo>, onAppClicked: (packageName: String) -> Unit) {
     Box (contentAlignment = Alignment.Center, modifier = Modifier
-        .background(Color.Black)
         .fillMaxHeight()) {
-        LazyRow (horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
-            itemsIndexed(apps) {_: Int, item: AppInfo ->
-                AppListItem(appInfo = item, onAppClicked = onAppClicked)
+        LazyRow (horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            if (apps.isEmpty()) {
+                items(1) {
+                    ButtonItem(
+                        onClick = { /*TODO*/ },
+                        drawable = R.drawable.settings
+                    )
+                }
+            } else {
+                itemsIndexed(apps) {index: Int, item: AppInfo ->
+                    AppListItem(appInfo = item, onAppClicked = onAppClicked)
+                    if (index == apps.size - 1) {
+                        ButtonItem(
+                            onClick = { /*TODO*/ },
+                            drawable = R.drawable.settings
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ButtonItem(onClick: () -> Unit, drawable: Int) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    val focusedModifier = Modifier
+        .size(width = 105.dp, height = 105.dp)
+        .border(1.dp, Color.White, shape = RoundedCornerShape(8.dp))
+    val unfocusedModifier = Modifier.size(width = 100.dp, height = 100.dp)
+
+    Card (
+        onClick = { onClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Transparent,
+            contentColor = Color.White
+        ),
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier
+            .padding(8.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+            .then(if (isFocused) focusedModifier else unfocusedModifier)
+    ) {
+        Box (
+            modifier = Modifier
+                .padding(4.dp)
+                .background(Color(30, 30, 30))
+                .border(width = 2.dp, color = Color.White, shape = RoundedCornerShape(8.dp))
+                .fillMaxHeight(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth()
+                    .wrapContentHeight()
+            ) {
+                Image (
+                    painter = painterResource(id = drawable),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(50.dp)
+                )
             }
         }
     }
@@ -152,20 +225,35 @@ fun AppList(apps: List<AppInfo>, onAppClicked: (packageName: String) -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppListItem(appInfo: AppInfo, onAppClicked: (packageName: String) -> Unit) {
+    var isFocused by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val icon = getAppIcon(context, appInfo.package_name)
+
+    val focusedModifier = Modifier
+        .size(width = 105.dp, height = 105.dp)
+        .border(1.dp, Color.White, shape = RoundedCornerShape(8.dp))
+    val unfocusedModifier = Modifier.size(width = 100.dp, height = 100.dp)
 
     Card (
         onClick = { onAppClicked(appInfo.package_name) },
         colors = CardDefaults.cardColors(
-            containerColor = Color(30, 30, 30),
+            containerColor = Color.Transparent,
             contentColor = Color.White
         ),
+        shape = RoundedCornerShape(8.dp),
         modifier = Modifier
             .padding(8.dp)
-            .border(width = 1.dp, color = Color.White, shape = RoundedCornerShape(16.dp))
+            .onFocusChanged { isFocused = it.isFocused }
+            .then(if (isFocused) focusedModifier else unfocusedModifier)
     ) {
-        Box (modifier = Modifier.defaultMinSize(minWidth = 160.dp, minHeight = 160.dp), contentAlignment = Alignment.Center) {
+        Box (
+            modifier = Modifier
+                .padding(4.dp)
+                .background(Color(30, 30, 30))
+                .border(width = 2.dp, color = Color.White, shape = RoundedCornerShape(8.dp))
+                .fillMaxHeight(),
+            contentAlignment = Alignment.Center
+        ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
@@ -179,15 +267,10 @@ fun AppListItem(appInfo: AppInfo, onAppClicked: (packageName: String) -> Unit) {
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
-                            .size(75.dp)
+                            .size(50.dp)
                             .clip(CircleShape)
                     )
                 }
-                Text (
-                    text = appInfo.label.uppercase(),
-                    modifier = Modifier.padding(top = 16.dp),
-                    style = TextStyle(fontWeight = FontWeight.Black, letterSpacing = 3.sp)
-                )
             }
         }
     }
