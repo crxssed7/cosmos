@@ -1,27 +1,32 @@
 package com.crxssed.cosmos
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Context.BATTERY_SERVICE
+import android.content.Context.MODE_PRIVATE
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.os.BatteryManager
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.MarqueeAnimationMode
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,18 +34,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.AbsoluteCutCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CardElevation
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,120 +55,282 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.tooling.preview.Preview
-import com.crxssed.cosmos.ui.theme.CosmosTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat.startActivity
-import androidx.core.graphics.drawable.toBitmap
-import androidx.core.view.WindowCompat
+import androidx.navigation.NavController
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.crxssed.cosmos.ui.theme.CosmosTheme
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 import java.util.Calendar
-import java.util.Date
 import java.util.Locale
 
+object GlobalConstants {
+    const val PACKAGE_NAME = "com.crxssed.cosmos"
+}
+
 class MainActivity : ComponentActivity() {
+
+    private lateinit var navController: NavController
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        
         setContent {
+            navController = rememberNavController()
+
+            var selectedApps by remember { mutableStateOf(applicationContext.getSelectedApps()) }
+
             CosmosTheme {
                 // A surface container using the 'background' color from the theme
                 Surface(modifier = Modifier.fillMaxSize(), color = Color(15, 1, 18)) {
                     Column {
                         Box (modifier = Modifier
                             .background(Color(30, 30, 30, 0))
-                            .fillMaxWidth()) {
-                            Box(modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
+                            .fillMaxWidth()
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 10.dp, vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Row(horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Image(
+                                        painter = painterResource(id = R.drawable.logo),
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .padding(end = 10.dp)
+                                            .size(20.dp)
+                                    )
                                     CurrentTime()
                                     Spacer(modifier = Modifier.weight(1f))
-                                    Text(text = "cosmos", color = Color.White, style = TextStyle(fontSize = 12.sp))
+                                    BatteryLevel()
                                 }
                             }
                         }
-                        MainContainer()
+                        NavHost(
+                            navController = navController as NavHostController,
+                            startDestination = "mainScreen"
+                        ) {
+                            composable("mainScreen") {
+                                MainScreen(
+                                    navController = navController,
+                                    selectedApps = selectedApps
+                                )
+                            }
+                            composable("settingsScreen") {
+                                SettingsScreen(
+                                    selectedApps = selectedApps,
+                                    context = applicationContext,
+                                    onAppChecked = { app, checked ->
+                                        val updatedApps = if (checked) {
+                                            selectedApps + app
+                                        } else {
+                                            selectedApps - app
+                                        }
+                                        selectedApps = updatedApps
+                                        applicationContext.saveSelectedApps(selectedApps)
+                                    },
+                                    onBack = {
+                                        navController.navigate("mainScreen")
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
     }
+
+    @SuppressLint("MissingSuperCall")
+    override fun onBackPressed() {
+        if (!navController.navigateUp()) {
+            navController.navigate("mainScreen")
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun MainScreen(navController: NavController, selectedApps: Set<AppInfo>) {
+    var wallpoet = FontFamily(
+        Font(R.font.wallpoet_regular, FontWeight.Normal)
+    )
+
+    var title by remember { mutableStateOf("Cosmos") }
+
+    val context = LocalContext.current
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        color = Color.Transparent
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = title.uppercase(),
+                fontFamily = wallpoet,
+                color = Color.White,
+                fontSize = 40.sp,
+                maxLines = 1,
+                modifier = Modifier
+                    .padding(10.dp, 20.dp)
+                    .basicMarquee(
+                        iterations = Int.MAX_VALUE,
+                        animationMode = MarqueeAnimationMode.Immediately,
+                        delayMillis = 1000,
+                        initialDelayMillis = 3000
+                    )
+                    .align(Alignment.CenterHorizontally)
+            )
+            AppList(
+                apps = selectedApps,
+                onAppClicked = {packageName: String ->
+                    Log.w("Launch", "Hit")
+                    val intent: Intent? = context.packageManager.getLaunchIntentForPackage(packageName)
+                    if (intent == null) {
+                        Log.w("Launch", "Intent was null")
+                    }
+                    intent?.let {
+                        startActivity(context, it, null)
+                    }
+                },
+                onFocus = {newTitle: String ->
+                    title = newTitle
+                },
+                navController = navController
+            )
+        }
+    }
 }
 
 @Composable
-fun MainContainer() {
-    val context = LocalContext.current
+fun SettingsScreen(selectedApps: Set<AppInfo>, context: Context, onAppChecked: (AppInfo, Boolean) -> Unit, onBack: () -> Unit) {
+    var installedApps = remember { context.getInstalledApps() }
+
     Surface(
         modifier = Modifier
             .padding(16.dp)
             .fillMaxSize(),
         color = Color.Transparent
     ) {
-        AppList(
-            apps = listOf(
-                AppInfo("org.xbmc.kodi", "Kodi"),
-                AppInfo("com.magneticchen.daijishou", "Daijishō")
-            ),
-            onAppClicked = {packageName: String ->
-                Log.w("Launch", "Hit")
-                val intent: Intent? = context.packageManager.getLaunchIntentForPackage(packageName)
-                if (intent == null) {
-                    Log.w("Launch", "Intent was null")
-                }
-                intent?.let {
-                    startActivity(context, it, null)
-                }
-            }
+        BackHandler(
+            enabled = true,
+            onBack = onBack
         )
+        LazyColumn {
+            items(installedApps) {app: AppInfo ->
+                AppCheckbox(appInfo = app, checked = selectedApps.contains(app), onAppChecked = onAppChecked)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AppCheckbox(appInfo: AppInfo, checked: Boolean, onAppChecked: (AppInfo, Boolean) -> Unit) {
+    var isFocused by remember { mutableStateOf(false) }
+    var isChecked by remember {
+        mutableStateOf(checked)
+    }
+
+    val focusedModifier = Modifier
+        .border(1.dp, Color.White, shape = RoundedCornerShape(9.dp))
+    val unfocusedModifier = Modifier
+
+    Card (
+        onClick = {
+            isChecked = !isChecked
+            onAppChecked(appInfo, isChecked)
+        },
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Transparent,
+            contentColor = Color.White
+        ),
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier
+            .padding(8.dp)
+            .fillMaxWidth()
+            .onFocusChanged {
+                isFocused = it.isFocused
+            }
+            .then(if (isFocused) focusedModifier else unfocusedModifier)
+    ) {
+        Row (
+            horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = isChecked,
+                onCheckedChange = {checked ->
+                    isChecked = checked
+                    onAppChecked(appInfo, isChecked)
+                }
+            )
+            Text(text = appInfo.label, color = Color.White)
+        }
     }
 }
 
 data class AppInfo (
-    val package_name: String,
+    val packageName: String,
     val label: String
 )
 
 @Composable
-fun AppList(apps: List<AppInfo>, onAppClicked: (packageName: String) -> Unit) {
-    Box (contentAlignment = Alignment.Center, modifier = Modifier
-        .fillMaxHeight()) {
-        LazyRow (horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+fun AppList(apps: Set<AppInfo>, onAppClicked: (packageName: String) -> Unit, onFocus: (title: String) -> Unit, navController: NavController) {
+    Box (
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        LazyRow (
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .height(110.dp)
+                .fillMaxWidth()
+        ) {
             if (apps.isEmpty()) {
                 items(1) {
                     ButtonItem(
-                        onClick = { /*TODO*/ },
-                        drawable = R.drawable.settings
+                        onClick = { navController.navigate("settingsScreen") },
+                        drawable = R.drawable.settings,
+                        onFocus = onFocus
                     )
                 }
             } else {
-                itemsIndexed(apps) {index: Int, item: AppInfo ->
-                    AppListItem(appInfo = item, onAppClicked = onAppClicked)
+                itemsIndexed(apps.toList()) {index: Int, item: AppInfo ->
+                    AppListItem(appInfo = item, onAppClicked = onAppClicked, onFocus = onFocus)
                     if (index == apps.size - 1) {
                         ButtonItem(
-                            onClick = { /*TODO*/ },
-                            drawable = R.drawable.settings
+                            onClick = { navController.navigate("settingsScreen") },
+                            drawable = R.drawable.settings,
+                            onFocus = onFocus
                         )
                     }
                 }
@@ -176,13 +341,12 @@ fun AppList(apps: List<AppInfo>, onAppClicked: (packageName: String) -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ButtonItem(onClick: () -> Unit, drawable: Int) {
+fun ButtonItem(onClick: () -> Unit, drawable: Int, onFocus: (title: String) -> Unit) {
     var isFocused by remember { mutableStateOf(false) }
 
     val focusedModifier = Modifier
-        .size(width = 105.dp, height = 105.dp)
-        .border(1.dp, Color.White, shape = RoundedCornerShape(8.dp))
-    val unfocusedModifier = Modifier.size(width = 100.dp, height = 100.dp)
+        .border(1.dp, Color.White, shape = RoundedCornerShape(9.dp))
+    val unfocusedModifier = Modifier
 
     Card (
         onClick = { onClick() },
@@ -193,7 +357,13 @@ fun ButtonItem(onClick: () -> Unit, drawable: Int) {
         shape = RoundedCornerShape(8.dp),
         modifier = Modifier
             .padding(8.dp)
-            .onFocusChanged { isFocused = it.isFocused }
+            .size(width = 100.dp, height = 100.dp)
+            .onFocusChanged {
+                isFocused = it.isFocused
+                if (isFocused) {
+                    onFocus("Settings")
+                }
+            }
             .then(if (isFocused) focusedModifier else unfocusedModifier)
     ) {
         Box (
@@ -224,18 +394,17 @@ fun ButtonItem(onClick: () -> Unit, drawable: Int) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppListItem(appInfo: AppInfo, onAppClicked: (packageName: String) -> Unit) {
+fun AppListItem(appInfo: AppInfo, onAppClicked: (packageName: String) -> Unit, onFocus: (title: String) -> Unit) {
     var isFocused by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val icon = getAppIcon(context, appInfo.package_name)
+    val icon = getAppIcon(context, appInfo.packageName)
 
     val focusedModifier = Modifier
-        .size(width = 105.dp, height = 105.dp)
-        .border(1.dp, Color.White, shape = RoundedCornerShape(8.dp))
-    val unfocusedModifier = Modifier.size(width = 100.dp, height = 100.dp)
+        .border(1.dp, Color.White, shape = RoundedCornerShape(9.dp))
+    val unfocusedModifier = Modifier
 
     Card (
-        onClick = { onAppClicked(appInfo.package_name) },
+        onClick = { onAppClicked(appInfo.packageName) },
         colors = CardDefaults.cardColors(
             containerColor = Color.Transparent,
             contentColor = Color.White
@@ -243,7 +412,13 @@ fun AppListItem(appInfo: AppInfo, onAppClicked: (packageName: String) -> Unit) {
         shape = RoundedCornerShape(8.dp),
         modifier = Modifier
             .padding(8.dp)
-            .onFocusChanged { isFocused = it.isFocused }
+            .size(width = 100.dp, height = 100.dp)
+            .onFocusChanged {
+                isFocused = it.isFocused
+                if (isFocused) {
+                    onFocus(appInfo.label)
+                }
+            }
             .then(if (isFocused) focusedModifier else unfocusedModifier)
     ) {
         Box (
@@ -338,6 +513,67 @@ fun CurrentTime() {
     Text(
         text = formattedTime.uppercase(),
         color = Color.White,
-        style = TextStyle(fontSize = 12.sp)
+        style = TextStyle(fontSize = 12.sp),
+        fontWeight = FontWeight.Bold
     )
+}
+
+@Composable
+fun BatteryLevel() {
+    val batteryManager = LocalContext.current.getSystemService(BATTERY_SERVICE) as BatteryManager
+    val currentLevel = remember {
+        mutableStateOf(batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY))
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            currentLevel.value = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            delay(1000)
+        }
+    }
+
+    Text(
+        text = "${currentLevel.value}%",
+        color = Color.White,
+        style = TextStyle(fontSize = 12.sp),
+        fontWeight = FontWeight.Bold
+    )
+}
+
+fun Context.getInstalledApps(): List<AppInfo> {
+    val apps = mutableListOf<AppInfo>()
+    val packageManager = packageManager
+    val packages = packageManager.getInstalledPackages(PackageManager.GET_META_DATA)
+    for (packageInfo in packages) {
+        if (!isSystemApp(packageInfo.applicationInfo)) {
+            val label = packageInfo.applicationInfo.loadLabel(packageManager).toString()
+            val packageName = packageInfo.packageName
+            apps.add(AppInfo(packageName = packageName, label = label))
+        }
+    }
+    return apps
+}
+
+fun isSystemApp(applicationInfo: ApplicationInfo): Boolean {
+    if (applicationInfo.packageName == "com.android.vending") {
+        return false
+    }
+    return (applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0) || applicationInfo.packageName == GlobalConstants.PACKAGE_NAME
+}
+
+fun Context.saveSelectedApps(selectedApps: Set<AppInfo>) {
+    val prefs = getSharedPreferences("selected_apps", MODE_PRIVATE)
+    val editor = prefs.edit()
+    val gson = Gson()
+    val json = gson.toJson(selectedApps)
+    editor.putString("selected_apps", json)
+    editor.apply()
+}
+
+fun Context.getSelectedApps(): Set<AppInfo> {
+    val prefs = getSharedPreferences("selected_apps", MODE_PRIVATE)
+    val gson = Gson()
+    val json = prefs.getString("selected_apps", null)
+    val type = object : TypeToken<Set<AppInfo>>() {}.type
+    return gson.fromJson(json, type) ?: emptySet()
 }
