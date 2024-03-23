@@ -181,7 +181,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(navController: NavController, selectedApps: Set<AppInfo>) {
     var wallpoet = FontFamily(
-        Font(R.font.wallpoet_regular, FontWeight.Normal)
+        Font(R.font.press_start_2p, FontWeight.Normal)
     )
 
     var title by remember { mutableStateOf("Cosmos") }
