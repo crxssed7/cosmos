@@ -89,6 +89,10 @@ import java.util.Locale
 
 object GlobalConstants {
     const val PACKAGE_NAME = "com.crxssed.cosmos"
+    val SYSTEM_APP_WHITELIST = listOf(
+        "com.android.vending",
+        "com.sec.android.app.myfiles"
+    )
 }
 
 class MainActivity : ComponentActivity() {
@@ -555,7 +559,7 @@ fun Context.getInstalledApps(): List<AppInfo> {
 }
 
 fun isSystemApp(applicationInfo: ApplicationInfo): Boolean {
-    if (applicationInfo.packageName == "com.android.vending") {
+    if (GlobalConstants.SYSTEM_APP_WHITELIST.contains(applicationInfo.packageName)) {
         return false
     }
     return (applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0) || applicationInfo.packageName == GlobalConstants.PACKAGE_NAME
