@@ -47,6 +47,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -71,6 +72,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -85,15 +87,19 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat.startActivity
+import androidx.core.graphics.drawable.toBitmap
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.palette.graphics.Palette
 import com.crxssed.cosmos.ui.theme.CosmosTheme
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -158,7 +164,7 @@ class MainActivity : ComponentActivity() {
                                     navController = navController,
                                     selectedApps = selectedApps,
                                     onItemRemove = {app: AppInfo ->
-                                        selectedApps = selectedApps - app
+                                        selectedApps = selectedApps.filter { it.packageName != app.packageName }.toSet()
                                     },
                                     onItemAdd = {app: AppInfo ->
                                         selectedApps = selectedApps + app
@@ -170,12 +176,11 @@ class MainActivity : ComponentActivity() {
                                     selectedApps = selectedApps,
                                     context = applicationContext,
                                     onAppChecked = { app, checked ->
-                                        val updatedApps = if (checked) {
-                                            selectedApps + app
+                                        if (checked) {
+                                            selectedApps = selectedApps + app
                                         } else {
-                                            selectedApps - app
+                                            selectedApps = selectedApps.filter { it.packageName != app.packageName }.toSet()
                                         }
-                                        selectedApps = updatedApps
                                     }
                                 )
                             }
@@ -184,7 +189,7 @@ class MainActivity : ComponentActivity() {
                                     context = applicationContext,
                                     selectedApps = selectedApps,
                                     onRemove = {app: AppInfo ->
-                                        selectedApps = selectedApps - app
+                                        selectedApps = selectedApps.filter { it.packageName != app.packageName }.toSet()
                                     },
                                     onAdd = {app: AppInfo ->
                                         selectedApps = selectedApps + app
@@ -224,7 +229,8 @@ fun MainScreen(
     Surface(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(16.dp)
+            .border(1.dp, Color.Transparent, RoundedCornerShape(8.dp)),
         color = Color.Transparent
     ) {
         Column(
@@ -320,7 +326,7 @@ fun AllAppsScreen(
                             startActivity(context, it, null)
                         }
                     },
-                    onFocus = { },
+                    onFocus = {_ -> },
                     isSelected = selectedApps.contains(item),
                     onRemove = onRemove,
                     onAdd = onAdd
@@ -339,7 +345,7 @@ fun AppCheckbox(appInfo: AppInfo, checked: Boolean, onAppChecked: (AppInfo, Bool
     }
 
     val focusedModifier = Modifier
-        .border(1.dp, Color.White, shape = RoundedCornerShape(9.dp))
+        .border(1.dp, Color(appInfo.colour), shape = RoundedCornerShape(9.dp))
     val unfocusedModifier = Modifier
 
     Card (
@@ -368,7 +374,11 @@ fun AppCheckbox(appInfo: AppInfo, checked: Boolean, onAppChecked: (AppInfo, Bool
                 onCheckedChange = {checked ->
                     isChecked = checked
                     onAppChecked(appInfo, isChecked)
-                }
+                },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = Color(appInfo.colour),
+                    checkmarkColor = Color.White
+                )
             )
             Text(text = appInfo.label, color = Color.White)
         }
@@ -377,7 +387,8 @@ fun AppCheckbox(appInfo: AppInfo, checked: Boolean, onAppChecked: (AppInfo, Bool
 
 data class AppInfo (
     val packageName: String,
-    val label: String
+    val label: String,
+    val colour: Int
 )
 
 @Composable
@@ -476,7 +487,6 @@ fun ButtonItem(onClick: () -> Unit, drawable: Int, onFocus: (title: String) -> U
         Box (
             modifier = Modifier
                 .padding(4.dp)
-                .background(Color(30, 30, 30))
                 .border(width = 2.dp, color = Color.White, shape = RoundedCornerShape(8.dp))
                 .fillMaxHeight(),
             contentAlignment = Alignment.Center
@@ -516,7 +526,7 @@ fun AppListItem(
     val icon = getAppIcon(context, appInfo.packageName)
 
     val focusedModifier = Modifier
-        .border(1.dp, Color.White, shape = RoundedCornerShape(9.dp))
+        .border(1.dp, Color(appInfo.colour), shape = RoundedCornerShape(9.dp))
     val unfocusedModifier = Modifier
 
     val haptics = LocalHapticFeedback.current
@@ -549,8 +559,11 @@ fun AppListItem(
         Box (
             modifier = Modifier
                 .padding(4.dp)
-                .background(Color(30, 30, 30))
-                .border(width = 2.dp, color = Color.White, shape = RoundedCornerShape(8.dp))
+                .border(
+                    width = 2.dp,
+                    color = if (isFocused) Color(appInfo.colour) else Color.White,
+                    shape = RoundedCornerShape(8.dp)
+                )
                 .fillMaxHeight(),
             contentAlignment = Alignment.Center
         ) {
@@ -602,16 +615,6 @@ fun AppListItem(
                 }
             }
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun BottomSheet() {
-    ModalDrawerSheet {
-        Text(text = "Hello")
-        Text(text = "World")
-        Text(text = "YEET")
     }
 }
 
@@ -712,10 +715,19 @@ fun Context.getInstalledApps(): List<AppInfo> {
         if (packageManager.getLaunchIntentForPackage(packageInfo.packageName) != null) {
             val label = packageInfo.applicationInfo.loadLabel(packageManager).toString()
             val packageName = packageInfo.packageName
-            apps.add(AppInfo(packageName = packageName, label = label))
+
+            val icon = packageInfo.applicationInfo.loadIcon(packageManager)
+            val bitmap = icon.toBitmap()
+            val dominantColour = bitmap.dominantColour()
+
+            apps.add(AppInfo(packageName = packageName, label = label, colour = dominantColour))
         }
     }
     return apps
+}
+
+fun Bitmap.dominantColour(): Int {
+    return Palette.from(this).generate().dominantSwatch?.rgb ?: Color.Black.toArgb()
 }
 
 fun Context.saveSelectedApps(selectedApps: Set<AppInfo>) {
