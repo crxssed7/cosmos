@@ -188,8 +188,8 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MainScreen(navController: NavController, selectedApps: Set<AppInfo>) {
-    var wallpoet = FontFamily(
-        Font(R.font.press_start_2p, FontWeight.Normal)
+    var black_ops = FontFamily(
+        Font(R.font.black_ops, FontWeight.Normal)
     )
 
     var title by remember { mutableStateOf("Cosmos") }
@@ -207,7 +207,7 @@ fun MainScreen(navController: NavController, selectedApps: Set<AppInfo>) {
         ) {
             Text(
                 text = title.uppercase(),
-                fontFamily = wallpoet,
+                fontFamily = black_ops,
                 color = Color.White,
                 fontSize = 40.sp,
                 maxLines = 1,
