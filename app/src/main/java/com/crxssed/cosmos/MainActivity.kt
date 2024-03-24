@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,6 +37,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -49,6 +54,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -156,10 +162,12 @@ class MainActivity : ComponentActivity() {
                                         }
                                         selectedApps = updatedApps
                                         applicationContext.saveSelectedApps(selectedApps)
-                                    },
-                                    onBack = {
-                                        navController.navigate("mainScreen")
                                     }
+                                )
+                            }
+                            composable("allAppsScreen") {
+                                AllAppsScreen(
+                                    context = applicationContext,
                                 )
                             }
                         }
@@ -235,7 +243,7 @@ fun MainScreen(navController: NavController, selectedApps: Set<AppInfo>) {
 }
 
 @Composable
-fun SettingsScreen(selectedApps: Set<AppInfo>, context: Context, onAppChecked: (AppInfo, Boolean) -> Unit, onBack: () -> Unit) {
+fun SettingsScreen(selectedApps: Set<AppInfo>, context: Context, onAppChecked: (AppInfo, Boolean) -> Unit) {
     var installedApps = remember { context.getInstalledApps() }
 
     Surface(
@@ -244,13 +252,43 @@ fun SettingsScreen(selectedApps: Set<AppInfo>, context: Context, onAppChecked: (
             .fillMaxSize(),
         color = Color.Transparent
     ) {
-        BackHandler(
-            enabled = true,
-            onBack = onBack
-        )
         LazyColumn {
             items(installedApps) {app: AppInfo ->
                 AppCheckbox(appInfo = app, checked = selectedApps.contains(app), onAppChecked = onAppChecked)
+            }
+        }
+    }
+}
+
+@Composable
+fun AllAppsScreen(context: Context) {
+    var installedApps = remember { context.getInstalledApps() }
+
+    Surface(
+        modifier = Modifier
+            .padding(16.dp)
+            .fillMaxSize(),
+        color = Color.Transparent
+    ) {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(100.dp)
+        ) {
+            itemsIndexed(installedApps.toList()) {_: Int, item: AppInfo ->
+                AppListItem(
+                    appInfo = item,
+                    // TODO: DRY this up
+                    onAppClicked = {packageName: String ->
+                        Log.w("Launch", "Hit")
+                        val intent: Intent? = context.packageManager.getLaunchIntentForPackage(packageName)
+                        if (intent == null) {
+                            Log.w("Launch", "Intent was null")
+                        }
+                        intent?.let {
+                            startActivity(context, it, null)
+                        }
+                    },
+                    onFocus = { }
+                )
             }
         }
     }
@@ -320,11 +358,18 @@ fun AppList(apps: Set<AppInfo>, onAppClicked: (packageName: String) -> Unit, onF
                 .fillMaxWidth()
         ) {
             if (apps.isEmpty()) {
-                items(1) {
+                items(2) {
+                    ButtonItem(
+                        onClick = { navController.navigate("allAppsScreen") },
+                        drawable = R.drawable.apps,
+                        onFocus = onFocus,
+                        title = "All Apps"
+                    )
                     ButtonItem(
                         onClick = { navController.navigate("settingsScreen") },
                         drawable = R.drawable.settings,
-                        onFocus = onFocus
+                        onFocus = onFocus,
+                        title = "Settings"
                     )
                 }
             } else {
@@ -332,9 +377,16 @@ fun AppList(apps: Set<AppInfo>, onAppClicked: (packageName: String) -> Unit, onF
                     AppListItem(appInfo = item, onAppClicked = onAppClicked, onFocus = onFocus)
                     if (index == apps.size - 1) {
                         ButtonItem(
+                            onClick = { navController.navigate("allAppsScreen") },
+                            drawable = R.drawable.apps,
+                            onFocus = onFocus,
+                            title = "All Apps"
+                        )
+                        ButtonItem(
                             onClick = { navController.navigate("settingsScreen") },
                             drawable = R.drawable.settings,
-                            onFocus = onFocus
+                            onFocus = onFocus,
+                            title = "Settings"
                         )
                     }
                 }
@@ -345,7 +397,7 @@ fun AppList(apps: Set<AppInfo>, onAppClicked: (packageName: String) -> Unit, onF
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ButtonItem(onClick: () -> Unit, drawable: Int, onFocus: (title: String) -> Unit) {
+fun ButtonItem(onClick: () -> Unit, drawable: Int, onFocus: (title: String) -> Unit, title: String) {
     var isFocused by remember { mutableStateOf(false) }
 
     val focusedModifier = Modifier
@@ -362,10 +414,11 @@ fun ButtonItem(onClick: () -> Unit, drawable: Int, onFocus: (title: String) -> U
         modifier = Modifier
             .padding(8.dp)
             .size(width = 100.dp, height = 100.dp)
+            .defaultMinSize(minWidth = 100.dp, minHeight = 100.dp)
             .onFocusChanged {
                 isFocused = it.isFocused
                 if (isFocused) {
-                    onFocus("Settings")
+                    onFocus(title)
                 }
             }
             .then(if (isFocused) focusedModifier else unfocusedModifier)
@@ -526,7 +579,7 @@ fun CurrentTime() {
 fun BatteryLevel() {
     val batteryManager = LocalContext.current.getSystemService(BATTERY_SERVICE) as BatteryManager
     val currentLevel = remember {
-        mutableStateOf(batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY))
+        mutableIntStateOf(batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY))
     }
 
     LaunchedEffect(Unit) {
@@ -549,20 +602,13 @@ fun Context.getInstalledApps(): List<AppInfo> {
     val packageManager = packageManager
     val packages = packageManager.getInstalledPackages(PackageManager.GET_META_DATA)
     for (packageInfo in packages) {
-        if (!isSystemApp(packageInfo.applicationInfo)) {
+        if (packageManager.getLaunchIntentForPackage(packageInfo.packageName) != null) {
             val label = packageInfo.applicationInfo.loadLabel(packageManager).toString()
             val packageName = packageInfo.packageName
             apps.add(AppInfo(packageName = packageName, label = label))
         }
     }
     return apps
-}
-
-fun isSystemApp(applicationInfo: ApplicationInfo): Boolean {
-    if (GlobalConstants.SYSTEM_APP_WHITELIST.contains(applicationInfo.packageName)) {
-        return false
-    }
-    return (applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0) || applicationInfo.packageName == GlobalConstants.PACKAGE_NAME
 }
 
 fun Context.saveSelectedApps(selectedApps: Set<AppInfo>) {
