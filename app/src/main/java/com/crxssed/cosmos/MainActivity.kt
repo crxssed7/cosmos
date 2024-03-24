@@ -14,7 +14,6 @@ import android.os.BatteryManager
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -22,6 +21,7 @@ import androidx.compose.foundation.MarqueeAnimationMode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,7 +38,6 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
@@ -48,7 +47,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Divider
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,9 +71,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -113,6 +118,10 @@ class MainActivity : ComponentActivity() {
 
             var selectedApps by remember { mutableStateOf(applicationContext.getSelectedApps()) }
 
+            LaunchedEffect(selectedApps) {
+                applicationContext.saveSelectedApps(selectedApps)
+            }
+
             CosmosTheme {
                 // A surface container using the 'background' color from the theme
                 Surface(modifier = Modifier.fillMaxSize(), color = Color(15, 1, 18)) {
@@ -147,7 +156,13 @@ class MainActivity : ComponentActivity() {
                             composable("mainScreen") {
                                 MainScreen(
                                     navController = navController,
-                                    selectedApps = selectedApps
+                                    selectedApps = selectedApps,
+                                    onItemRemove = {app: AppInfo ->
+                                        selectedApps = selectedApps - app
+                                    },
+                                    onItemAdd = {app: AppInfo ->
+                                        selectedApps = selectedApps + app
+                                    }
                                 )
                             }
                             composable("settingsScreen") {
@@ -161,13 +176,19 @@ class MainActivity : ComponentActivity() {
                                             selectedApps - app
                                         }
                                         selectedApps = updatedApps
-                                        applicationContext.saveSelectedApps(selectedApps)
                                     }
                                 )
                             }
                             composable("allAppsScreen") {
                                 AllAppsScreen(
                                     context = applicationContext,
+                                    selectedApps = selectedApps,
+                                    onRemove = {app: AppInfo ->
+                                        selectedApps = selectedApps - app
+                                    },
+                                    onAdd = {app: AppInfo ->
+                                        selectedApps = selectedApps + app
+                                    }
                                 )
                             }
                         }
@@ -187,7 +208,12 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MainScreen(navController: NavController, selectedApps: Set<AppInfo>) {
+fun MainScreen(
+    navController: NavController,
+    selectedApps: Set<AppInfo>,
+    onItemRemove: (app: AppInfo) -> Unit,
+    onItemAdd: (app: AppInfo) -> Unit
+) {
     var black_ops = FontFamily(
         Font(R.font.black_ops, FontWeight.Normal)
     )
@@ -236,7 +262,9 @@ fun MainScreen(navController: NavController, selectedApps: Set<AppInfo>) {
                 onFocus = {newTitle: String ->
                     title = newTitle
                 },
-                navController = navController
+                navController = navController,
+                onItemRemove = onItemRemove,
+                onItemAdd = onItemAdd
             )
         }
     }
@@ -261,7 +289,12 @@ fun SettingsScreen(selectedApps: Set<AppInfo>, context: Context, onAppChecked: (
 }
 
 @Composable
-fun AllAppsScreen(context: Context) {
+fun AllAppsScreen(
+    context: Context,
+    selectedApps: Set<AppInfo>,
+    onRemove: (app: AppInfo) -> Unit,
+    onAdd: (app: AppInfo) -> Unit
+) {
     var installedApps = remember { context.getInstalledApps() }
 
     Surface(
@@ -287,7 +320,10 @@ fun AllAppsScreen(context: Context) {
                             startActivity(context, it, null)
                         }
                     },
-                    onFocus = { }
+                    onFocus = { },
+                    isSelected = selectedApps.contains(item),
+                    onRemove = onRemove,
+                    onAdd = onAdd
                 )
             }
         }
@@ -345,7 +381,14 @@ data class AppInfo (
 )
 
 @Composable
-fun AppList(apps: Set<AppInfo>, onAppClicked: (packageName: String) -> Unit, onFocus: (title: String) -> Unit, navController: NavController) {
+fun AppList(
+    apps: Set<AppInfo>,
+    onAppClicked: (packageName: String) -> Unit,
+    onFocus: (title: String) -> Unit,
+    navController: NavController,
+    onItemRemove: (app: AppInfo) -> Unit,
+    onItemAdd: (app: AppInfo) -> Unit
+) {
     Box (
         contentAlignment = Alignment.Center,
         modifier = Modifier.fillMaxWidth()
@@ -358,7 +401,7 @@ fun AppList(apps: Set<AppInfo>, onAppClicked: (packageName: String) -> Unit, onF
                 .fillMaxWidth()
         ) {
             if (apps.isEmpty()) {
-                items(2) {
+                items(1) {
                     ButtonItem(
                         onClick = { navController.navigate("allAppsScreen") },
                         drawable = R.drawable.apps,
@@ -374,7 +417,14 @@ fun AppList(apps: Set<AppInfo>, onAppClicked: (packageName: String) -> Unit, onF
                 }
             } else {
                 itemsIndexed(apps.toList()) {index: Int, item: AppInfo ->
-                    AppListItem(appInfo = item, onAppClicked = onAppClicked, onFocus = onFocus)
+                    AppListItem(
+                        appInfo = item,
+                        onAppClicked = onAppClicked,
+                        onFocus = onFocus,
+                        isSelected = true,
+                        onRemove = onItemRemove,
+                        onAdd = onItemAdd
+                    )
                     if (index == apps.size - 1) {
                         ButtonItem(
                             onClick = { navController.navigate("allAppsScreen") },
@@ -449,10 +499,19 @@ fun ButtonItem(onClick: () -> Unit, drawable: Int, onFocus: (title: String) -> U
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun AppListItem(appInfo: AppInfo, onAppClicked: (packageName: String) -> Unit, onFocus: (title: String) -> Unit) {
+fun AppListItem(
+    appInfo: AppInfo,
+    onAppClicked: (packageName: String) -> Unit,
+    onFocus: (title: String) -> Unit,
+    isSelected: Boolean,
+    onRemove: (app: AppInfo) -> Unit,
+    onAdd: (app: AppInfo) -> Unit
+) {
     var isFocused by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
+
     val context = LocalContext.current
     val icon = getAppIcon(context, appInfo.packageName)
 
@@ -460,8 +519,9 @@ fun AppListItem(appInfo: AppInfo, onAppClicked: (packageName: String) -> Unit, o
         .border(1.dp, Color.White, shape = RoundedCornerShape(9.dp))
     val unfocusedModifier = Modifier
 
+    val haptics = LocalHapticFeedback.current
+
     Card (
-        onClick = { onAppClicked(appInfo.packageName) },
         colors = CardDefaults.cardColors(
             containerColor = Color.Transparent,
             contentColor = Color.White
@@ -477,6 +537,14 @@ fun AppListItem(appInfo: AppInfo, onAppClicked: (packageName: String) -> Unit, o
                 }
             }
             .then(if (isFocused) focusedModifier else unfocusedModifier)
+            .combinedClickable(
+                onClick = { onAppClicked(appInfo.packageName) },
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    showMenu = true
+                },
+                onLongClickLabel = "Long Press"
+            )
     ) {
         Box (
             modifier = Modifier
@@ -504,7 +572,46 @@ fun AppListItem(appInfo: AppInfo, onAppClicked: (packageName: String) -> Unit, o
                     )
                 }
             }
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+                modifier = Modifier.background(Color.Black)
+            ) {
+                DropdownMenuItem(
+                    text = {  Text(appInfo.label) },
+                    onClick = { /* Handle refresh! */ },
+                    enabled = false
+                )
+                Divider()
+                if (isSelected) {
+                    DropdownMenuItem(
+                        text = {  Text("Remove") },
+                        onClick = {
+                            onRemove(appInfo)
+                            showMenu = false
+                        }
+                    )
+                } else {
+                    DropdownMenuItem(
+                        text = {  Text("Add") },
+                        onClick = {
+                            onAdd(appInfo)
+                            showMenu = false
+                        }
+                    )
+                }
+            }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BottomSheet() {
+    ModalDrawerSheet {
+        Text(text = "Hello")
+        Text(text = "World")
+        Text(text = "YEET")
     }
 }
 
