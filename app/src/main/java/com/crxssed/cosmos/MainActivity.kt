@@ -144,7 +144,6 @@ class MainActivity : ComponentActivity() {
                                                 doesTabRowHaveFocus = doesTabRowHaveFocus,
                                             )
                                         }
-//                                        modifier = Modifier.focusRestorer()
                                     ) {
                                         tabs.forEachIndexed { index, tab ->
                                             key(index) {
@@ -240,46 +239,50 @@ fun MainScreen(
             .border(1.dp, Color.Transparent, RoundedCornerShape(8.dp)),
         color = Color.Transparent
     ) {
-        ImmersiveList(
-            listAlignment = Alignment.BottomCenter,
-            background = {index: Int, _: Boolean ->
-                val appInfo = selectedApps.toList()[index]
+        if (selectedApps.isNotEmpty()) {
+            ImmersiveList(
+                listAlignment = Alignment.BottomCenter,
+                background = {index: Int, _: Boolean ->
+                    val appInfo = selectedApps.toList()[index]
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                ) {
-                    Column {
-                        HeaderText(appInfo = appInfo)
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(2),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(1) {
-                                StatBox(colour = appInfo.colour, title = "Launches", value = "12")
-                            }
-                            items(1) {
-                                StatBox(colour = appInfo.colour, title = "Screen Time", value = "60m")
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                    ) {
+                        Column {
+                            HeaderText(appInfo = appInfo)
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(2),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(1) {
+                                    StatBox(colour = appInfo.colour, title = "Launches", value = "12")
+                                }
+                                items(1) {
+                                    StatBox(colour = appInfo.colour, title = "Screen Time", value = "60m")
+                                }
                             }
                         }
                     }
                 }
-            }
-        ) {
-            TvLazyRow (
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
             ) {
-                itemsIndexed(selectedApps.toList()) { index: Int, appInfo: AppInfo ->
-                    Box(modifier = Modifier.immersiveListItem(index)) {
-                        AppListItem(
-                            appInfo = appInfo
-                        )
+                TvLazyRow (
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                ) {
+                    itemsIndexed(selectedApps.toList()) { index: Int, appInfo: AppInfo ->
+                        Box(modifier = Modifier.immersiveListItem(index)) {
+                            AppListItem(
+                                appInfo = appInfo
+                            )
+                        }
                     }
                 }
             }
+        } else {
+            // TODO: Show text explaining that the user has to add apps using the settings page
         }
     }
 }
