@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -274,16 +275,7 @@ fun MainScreen(
                 itemsIndexed(selectedApps.toList()) { index: Int, appInfo: AppInfo ->
                     Box(modifier = Modifier.immersiveListItem(index)) {
                         AppListItem(
-                            appInfo = appInfo,
-                            onAppClicked = {packageName: String ->
-                                val intent: Intent? = context.packageManager.getLaunchIntentForPackage(packageName)
-                                if (intent == null) {
-                                    Log.w("Launch", "Intent was null")
-                                }
-                                intent?.let {
-                                    startActivity(context, it, null)
-                                }
-                            }
+                            appInfo = appInfo
                         )
                     }
                 }
@@ -333,28 +325,26 @@ fun AppCheckbox(appInfo: AppInfo, checked: Boolean, onAppChecked: (AppInfo, Bool
     var isChecked by remember {
         mutableStateOf(checked)
     }
+    val context = LocalContext.current
 
-    Card (
-        onClick = {
-            isChecked = !isChecked
-            onAppChecked(appInfo, isChecked)
-        },
-        colors = CardDefaults.colors(
-            containerColor = Color.Transparent,
-            contentColor = Color.White
-        ),
-        border = CardDefaults.border(
-            border = Border(border = BorderStroke(1.dp, Color.White), shape = RoundedCornerShape(8.dp)),
-            focusedBorder = Border(border = BorderStroke(1.dp, Color(appInfo.colour)), shape = RoundedCornerShape(8.dp))
-        ),
-        scale = CardDefaults.scale(focusedScale = 0.95f),
-        shape = CardDefaults.shape(shape = RoundedCornerShape(8.dp)),
-        modifier = Modifier
-            .padding(8.dp)
-            .fillMaxWidth()
-    ) {
-        Row (
-            horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
+    Row {
+        Card (
+            onClick = {
+                isChecked = !isChecked
+                onAppChecked(appInfo, isChecked)
+            },
+            colors = CardDefaults.colors(
+                containerColor = Color.Transparent,
+                contentColor = Color.White
+            ),
+            border = CardDefaults.border(
+                border = Border(border = BorderStroke(1.dp, Color.White), shape = RoundedCornerShape(8.dp)),
+                focusedBorder = Border(border = BorderStroke(1.dp, Color(appInfo.colour)), shape = RoundedCornerShape(8.dp))
+            ),
+            scale = CardDefaults.scale(focusedScale = 0.95f),
+            shape = CardDefaults.shape(shape = RoundedCornerShape(8.dp)),
+            modifier = Modifier
+                .padding(8.dp)
         ) {
             Checkbox(
                 checked = isChecked,
@@ -365,9 +355,32 @@ fun AppCheckbox(appInfo: AppInfo, checked: Boolean, onAppChecked: (AppInfo, Bool
                 colors = CheckboxDefaults.colors(
                     checkedColor = Color(appInfo.colour),
                     checkmarkColor = Color.White
-                )
+                ),
+                modifier = Modifier.focusProperties { canFocus = false }
             )
-            Text(text = appInfo.label, color = Color.White)
+        }
+        Card (
+            onClick = { appInfo.open(context) },
+            colors = CardDefaults.colors(
+                containerColor = Color.Transparent,
+                contentColor = Color.White
+            ),
+            border = CardDefaults.border(
+                border = Border(border = BorderStroke(1.dp, Color.White), shape = RoundedCornerShape(8.dp)),
+                focusedBorder = Border(border = BorderStroke(1.dp, Color(appInfo.colour)), shape = RoundedCornerShape(8.dp))
+            ),
+            scale = CardDefaults.scale(focusedScale = 0.99f),
+            shape = CardDefaults.shape(shape = RoundedCornerShape(8.dp)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight()
+                .padding(8.dp)
+        ) {
+            Text(
+                text = appInfo.label,
+                color = Color.White,
+                modifier = Modifier.padding(14.dp)
+            )
         }
     }
 }
@@ -378,11 +391,20 @@ data class AppInfo (
     val colour: Int
 )
 
+fun AppInfo.open(context: Context) {
+    val intent: Intent? = context.packageManager.getLaunchIntentForPackage(packageName)
+    if (intent == null) {
+        Log.w("Launch", "Intent was null")
+    }
+    intent?.let {
+        startActivity(context, it, null)
+    }
+}
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun AppListItem(
-    appInfo: AppInfo,
-    onAppClicked: (packageName: String) -> Unit
+    appInfo: AppInfo
 ) {
     val context = LocalContext.current
     val icon = getAppIcon(context, appInfo.packageName)
@@ -397,7 +419,7 @@ fun AppListItem(
             focusedBorder = Border(border = BorderStroke(1.dp, Color(appInfo.colour)), shape = RoundedCornerShape(8.dp))
         ),
         scale = CardDefaults.scale(focusedScale = 0.95f),
-        onClick = { onAppClicked(appInfo.packageName) },
+        onClick = { appInfo.open(context) },
         modifier = Modifier
             .padding(8.dp)
             .size(width = 80.dp, height = 80.dp)
