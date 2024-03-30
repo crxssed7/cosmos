@@ -1,11 +1,14 @@
 package com.crxssed.cosmos.utils.extensions
 
+import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.core.graphics.drawable.toBitmap
 import com.crxssed.cosmos.data.models.AppInfo
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.util.concurrent.TimeUnit
 
 fun Context.getInstalledApps(): List<AppInfo> {
     val apps = mutableListOf<AppInfo>()
@@ -41,4 +44,30 @@ fun Context.getSelectedApps(): Set<AppInfo> {
     val json = prefs.getString("selected_apps", null)
     val type = object : TypeToken<Set<AppInfo>>() {}.type
     return gson.fromJson(json, type) ?: emptySet()
+}
+
+fun Context.getAppUsageTime(packageName: String): Long {
+    val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+        ?: return 0
+
+    Log.w("Hit", "Hit")
+    val currentTime = System.currentTimeMillis()
+    val startTime = currentTime - TimeUnit.DAYS.toMillis(31)
+
+    val appStats = usageStatsManager.queryUsageStats(
+        UsageStatsManager.INTERVAL_DAILY,
+        startTime,
+        currentTime
+    )
+    Log.w("Stats", appStats.size.toString())
+
+    var totalUsageTime = 0L
+
+    for (stats in appStats) {
+        if (stats.packageName == packageName) {
+            totalUsageTime += stats.totalTimeInForeground
+        }
+    }
+
+    return TimeUnit.MILLISECONDS.toMinutes(totalUsageTime)
 }

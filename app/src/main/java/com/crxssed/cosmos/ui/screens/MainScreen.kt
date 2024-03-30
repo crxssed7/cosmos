@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.itemsIndexed
@@ -24,6 +25,7 @@ import com.crxssed.cosmos.ui.components.AppListItem
 import com.crxssed.cosmos.ui.components.HeaderText
 import com.crxssed.cosmos.ui.components.StatBox
 import com.crxssed.cosmos.utils.constants.UI
+import com.crxssed.cosmos.utils.extensions.getAppUsageTime
 import com.crxssed.cosmos.utils.extensions.toColour
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -31,6 +33,8 @@ import com.crxssed.cosmos.utils.extensions.toColour
 fun MainScreen(
     selectedApps: Set<AppInfo>
 ) {
+    val context = LocalContext.current
+
     Surface(
         modifier = Modifier
             .fillMaxSize()
@@ -58,7 +62,7 @@ fun MainScreen(
                                     StatBox(colour = appInfo.toColour(), title = "Launches", value = "12")
                                 }
                                 items(1) {
-                                    StatBox(colour = appInfo.toColour(), title = "Screen Time", value = "60m")
+                                    StatBox(colour = appInfo.toColour(), title = "Screen Time", value = "${context.getAppUsageTime(appInfo.packageName)}m")
                                 }
                             }
                         }
